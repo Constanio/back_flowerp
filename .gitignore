@@ -1,0 +1,34 @@
+# Binaries
+main
+main.exe
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Dependencies
+vendor/
+
+# Logs
+*.log
+
+# Project specific
+uploads/*
+!uploads/.gitkeep
