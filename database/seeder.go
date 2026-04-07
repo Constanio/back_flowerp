@@ -1,129 +1,123 @@
 package database
 
 import (
-	"e_commerce/models"
-	"fmt"
+	"sirh/models"
+	"log"
 	"time"
-	"github.com/google/uuid"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
+// Utilitaire pour transformer un uint en *uint
+func toPtr(i uint) *uint {
+	return &i
+}
+
 func Seed() {
-	var count int64
-	database := DB
-
-	// 1. SEED ORGANIZATION
-	var org models.Organization
-	database.Model(&models.Organization{}).First(&org)
-	if org.ID == uuid.Nil {
-		org = models.Organization{
-			Name:    "FlowERP Corp",
-			Email:   "contact@flowerp.com",
-			Address: "123 Rue de l'Innovation, Paris",
-		}
-		database.Create(&org)
-		fmt.Println("✅ Organisation FlowERP créée")
+	// 1. TYPES DE CONGÉS
+	typesConges := []models.TypeConge{
+		{Nom: "Congés Payés", Description: "2.08 jours par mois", JoursParAn: 25, Couleur: "#4CAF50"},
+		{Nom: "RTT", Description: "Réduction du temps de travail", JoursParAn: 10, Couleur: "#2196F3"},
+		{Nom: "Maladie", Description: "Arrêt maladie justifié", JoursParAn: 0, Couleur: "#F44336"},
+	}
+	for i := range typesConges {
+		DB.FirstOrCreate(&typesConges[i], models.TypeConge{Nom: typesConges[i].Nom})
 	}
 
-	// 2. SEED USERS
-	var userCount int64
-	database.Model(&models.User{}).Count(&userCount)
-	if userCount == 0 {
-		admin := models.User{
-			OrganizationID: org.ID,
-			Name:           "Admin Global",
-			Email:          "admin@flowerp.com",
-			Password:       "admin123",
-			Role:           "admin",
-		}
-		database.Create(&admin)
-		fmt.Println("✅ Admin créé (admin@flowerp.com / admin123)")
+	// 2. DÉPARTEMENTS
+	deps := []models.Departement{
+		{Nom: "Direction Générale", Code: "DIR"},
+		{Nom: "Ressources Humaines", Code: "RH"},
+		{Nom: "Informatique", Code: "IT"},
+		{Nom: "Commercial", Code: "COM"},
+	}
+	for i := range deps {
+		DB.FirstOrCreate(&deps[i], models.Departement{Nom: deps[i].Nom})
 	}
 
-	// 3. SEED CUSTOMERS
-	database.Model(&models.Customer{}).Count(&count)
-	if count == 0 {
-		c1 := models.Customer{
-			OrganizationID: org.ID,
-			Name:           "Client Alpha SARL",
-			Email:          "achat@alpha.fr",
-			Phone:          "0145678910",
-			Address:        "Paris, France",
-			Status:         "active",
-		}
-		c2 := models.Customer{
-			OrganizationID: org.ID,
-			Name:           "Boutique Beta",
-			Email:          "contact@beta.com",
-			Phone:          "0612345678",
-			Address:        "Lyon, France",
-			Status:         "active",
-		}
-		database.Create(&c1)
-		database.Create(&c2)
-		fmt.Println("✅ Clients de test créés")
+	// 3. POSTES
+	postes := []models.Poste{
+		{Titre: "Directeur Général", DepartementID: toPtr(deps[0].ID), SalaireMin: 6000},
+		{Titre: "Responsable RH", DepartementID: toPtr(deps[1].ID), SalaireMin: 4000},
+		{Titre: "Lead Developer", DepartementID: toPtr(deps[2].ID), SalaireMin: 5000},
+		{Titre: "Développeur Junior", DepartementID: toPtr(deps[2].ID), SalaireMin: 3000},
+	}
+	for i := range postes {
+		DB.FirstOrCreate(&postes[i], models.Poste{Titre: postes[i].Titre})
 	}
 
-	// 4. SEED PRODUCTS
-	database.Model(&models.Product{}).Count(&count)
-	if count == 0 {
-		p1 := models.Product{
-			OrganizationID: org.ID,
-			Name:           "Ordinateur Portable Pro",
-			Price:          1200.00,
-			Stock:          15,
-			MinStock:       5,
-			Category:       "Informatique",
-		}
-		p2 := models.Product{
-			OrganizationID: org.ID,
-			Name:           "Écran 27 Pouces 4K",
-			Price:          350.00,
-			Stock:          3,
-			MinStock:       5,
-			Category:       "Périphériques",
-		}
-		database.Create(&p1)
-		database.Create(&p2)
-		fmt.Println("✅ Produits de test créés")
+	// 4. UTILISATEURS (AUTHENTIFICATION)
+	password, _ := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
+	passStr := string(password)
+
+	utilisateurs := []models.Utilisateur{
+		{
+			Matricule:      "ADM001",
+			Email:          "admin@sirh.com",
+			MotDePasseHash: passStr,
+			Prenom:         "Alice",
+			Nom:            "Admin",
+			Role:           models.RoleAdmin,
+			Statut:         models.StatutActif,
+			DateEmbauche:   time.Now(),
+			DepartementID:  toPtr(deps[0].ID),
+			PosteID:        toPtr(postes[0].ID),
+		},
+		{
+			Matricule:      "RH001",
+			Email:          "rh@sirh.com",
+			MotDePasseHash: passStr,
+			Prenom:         "Robert",
+			Nom:            "Hess",
+			Role:           models.RoleRH,
+			Statut:         models.StatutActif,
+			DateEmbauche:   time.Now(),
+			DepartementID:  toPtr(deps[1].ID),
+			PosteID:        toPtr(postes[1].ID),
+		},
+		{
+			Matricule:      "MGR001",
+			Email:          "manager@sirh.com",
+			MotDePasseHash: passStr,
+			Prenom:         "Marc",
+			Nom:            "Anger",
+			Role:           models.RoleManager,
+			Statut:         models.StatutActif,
+			DateEmbauche:   time.Now(),
+			DepartementID:  toPtr(deps[2].ID),
+			PosteID:        toPtr(postes[2].ID),
+		},
+		{
+			Matricule:      "EMP001",
+			Email:          "employe@sirh.com",
+			MotDePasseHash: passStr,
+			Prenom:         "Émilie",
+			Nom:            "Ploye",
+			Role:           models.RoleEmploye,
+			Statut:         models.StatutActif,
+			DateEmbauche:   time.Now(),
+			DepartementID:  toPtr(deps[2].ID),
+			PosteID:        toPtr(postes[3].ID),
+		},
 	}
 
-	// Fetch references for quotes/invoices
-	var customer models.Customer
-	database.Where("organization_id = ?", org.ID).First(&customer)
-	var product models.Product
-	database.Where("organization_id = ?", org.ID).First(&product)
-
-	// 5. SEED QUOTES
-	database.Model(&models.Quote{}).Count(&count)
-	if count == 0 && customer.ID != uuid.Nil && product.ID != uuid.Nil {
-		quote := models.Quote{
-			OrganizationID: org.ID,
-			CustomerID:     customer.ID,
-			Number:         "DEV-2026-001",
-			TotalAmount:    product.Price,
-			Status:         "pending",
-			ValidUntil:     time.Now().AddDate(0, 1, 0),
+	for i := range utilisateurs {
+		var u models.Utilisateur
+		err := DB.Where("email = ?", utilisateurs[i].Email).First(&u).Error
+		if err != nil {
+			DB.Create(&utilisateurs[i])
+			
+			for _, tc := range typesConges {
+				DB.Create(&models.SoldeConge{
+					UtilisateurID: utilisateurs[i].ID,
+					TypeCongeID:   tc.ID,
+					Annee:         time.Now().Year(),
+					TotalJours:    float64(tc.JoursParAn),
+					JoursUtilises: 0,
+				})
+			}
 		}
-		database.Create(&quote)
-		database.Create(&models.QuoteItem{QuoteID: quote.ID, ProductID: product.ID, Quantity: 1, Price: product.Price})
-		fmt.Println("✅ Devis de test créé")
 	}
 
-	// 6. SEED INVOICES
-	database.Model(&models.Invoice{}).Count(&count)
-	if count == 0 && customer.ID != uuid.Nil && product.ID != uuid.Nil {
-		now := time.Now()
-		invoice := models.Invoice{
-			OrganizationID: org.ID,
-			CustomerID:     customer.ID,
-			Number:         "FAC-2026-001",
-			TotalAmount:    product.Price,
-			Status:         "paid",
-			PaidAt:         &now,
-			DueDate:        now,
-		}
-		database.Create(&invoice)
-		database.Create(&models.InvoiceItem{InvoiceID: invoice.ID, ProductID: product.ID, Quantity: 1, Price: product.Price})
-		fmt.Println("✅ Factures de test créées")
-	}
+	log.Println("Seeder SIRH : Données d'authentification créées avec succès.")
 }

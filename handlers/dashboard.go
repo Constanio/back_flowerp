@@ -1,69 +1,32 @@
 package handlers
 
 import (
-	"e_commerce/database"
-	"e_commerce/models"
-	"time"
+	"sirh/database"
+	"sirh/models"
+	"net/http"
 
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
+	"github.com/gin-gonic/gin"
 )
 
 type DashboardStats struct {
-	MonthlyRevenue   float64 `json:"monthly_revenue"`
-	CustomerCount    int64   `json:"customer_count"`
-	UnpaidInvoices   int64   `json:"unpaid_invoices"`
-	LowStockProducts int64   `json:"low_stock_products"`
+	UtilisateurCount int64 `json:"utilisateur_count"`
+	DemandesEnAttente int64 `json:"demandes_en_attente"`
+	DepartementCount int64 `json:"departement_count"`
+	PosteCount       int64 `json:"poste_count"`
 }
 
-func GetDashboardStats(c *fiber.Ctx) error {
-	orgID := c.Locals("org_uuid").(uuid.UUID)
-	
-	now := time.Now()
-	firstDayOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
-
+func GetDashboardStats(c *gin.Context) {
 	var stats DashboardStats
 
-	// Chiffre d'affaires du mois
-	database.DB.Model(&models.Invoice{}).
-		Where("organization_id = ? AND status = ? AND paid_at >= ?", orgID, "paid", firstDayOfMonth).
-		Select("COALESCE(SUM(total_amount), 0)").Scan(&stats.MonthlyRevenue)
+	database.DB.Model(&models.Utilisateur{}).Count(&stats.UtilisateurCount)
+	database.DB.Model(&models.DemandeConge{}).Where("statut = ?", "en_attente").Count(&stats.DemandesEnAttente)
+	database.DB.Model(&models.Departement{}).Count(&stats.DepartementCount)
+	database.DB.Model(&models.Poste{}).Count(&stats.PosteCount)
 
-	// Nombre de clients
-	database.DB.Model(&models.Customer{}).
-		Where("organization_id = ?", orgID).
-		Count(&stats.CustomerCount)
-
-	// Factures impayées
-	database.DB.Model(&models.Invoice{}).
-		Where("organization_id = ? AND status = ?", orgID, "unpaid").
-		Count(&stats.UnpaidInvoices)
-
-	// Stock faible
-	database.DB.Model(&models.Product{}).
-		Where("organization_id = ? AND stock <= min_stock", orgID).
-		Count(&stats.LowStockProducts)
-
-	return c.JSON(stats)
+	c.JSON(http.StatusOK, stats)
 }
 
-func GetMonthlyRevenue(c *fiber.Ctx) error {
-	orgID := c.Locals("org_uuid").(uuid.UUID)
-
-	type Result struct {
-		Month   string  `json:"month"`
-		Revenue float64 `json:"revenue"`
-	}
-
-	var results []Result
-	// Requête simplifiée pour Chart.js (PostgreSQL)
-	database.DB.Model(&models.Invoice{}).
-		Where("organization_id = ? AND status = ?", orgID, "paid").
-		Select("TO_CHAR(paid_at, 'YYYY-MM') as month, COALESCE(SUM(total_amount), 0) as revenue").
-		Group("month").
-		Order("month DESC").
-		Limit(12).
-		Scan(&results)
-
-	return c.JSON(results)
+func GetMonthlyRevenue(c *gin.Context) {
+	// Cette fonction pourrait être supprimée ou transformée en statistiques RH (ex: embauches par mois)
+	c.JSON(http.StatusOK, gin.H{"message": "Non implémenté pour le module RH pur"})
 }

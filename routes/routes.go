@@ -1,75 +1,65 @@
 package routes
 
 import (
-	"e_commerce/handlers"
-	"e_commerce/middleware"
+	"sirh/handlers"
+	"sirh/middleware"
 
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gin-gonic/gin"
 )
 
-func Setup(app *fiber.App) {
-	app.Use(cors.New(cors.Config{
-		AllowOrigins:     "http://localhost:5173", // URL par défaut de Vite
-		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
-		AllowCredentials: true,
-	}))
+func Setup(r *gin.Engine) {
+	api := r.Group("/api")
+	{
+		// AUTH
+		auth := api.Group("/auth")
+		{
+			auth.POST("/register", handlers.Register)
+			auth.POST("/login", handlers.Login)
+			auth.GET("/me", middleware.AuthRequired, handlers.GetMe)
+		}
 
-	api := app.Group("/api")
+		// ROUTES PROTÉGÉES
+		protected := api.Group("/")
+		protected.Use(middleware.AuthRequired)
+		{
+			// DASHBOARD
+			protected.GET("/dashboard/stats", handlers.GetDashboardStats)
+			protected.GET("/dashboard/revenue", handlers.GetMonthlyRevenue)
 
-	// AUTH
-	auth := api.Group("/auth")
-	auth.Post("/register", handlers.Register)
-	auth.Post("/login", handlers.Login)
-	auth.Get("/me", middleware.AuthRequired, handlers.GetMe)
+			// UTILISATEURS
+			utilisateurs := protected.Group("/utilisateurs")
+			{
+				utilisateurs.GET("/", handlers.GetUtilisateurs)
+				utilisateurs.GET("/:id", handlers.GetUtilisateur)
+				utilisateurs.POST("/", handlers.CreateUtilisateur)
+				utilisateurs.PUT("/:id", handlers.UpdateUtilisateur)
+				utilisateurs.DELETE("/:id", handlers.DeleteUtilisateur)
+			}
 
-	// PROTECTED ROUTES (WITH TENANT ISOLATION)
-	protected := api.Group("/")
-	protected.Use(middleware.AuthRequired)
-	protected.Use(middleware.TenantScope)
+			// ORGANISATION
+			protected.GET("/departements", handlers.GetDepartements)
+			protected.POST("/departements", handlers.CreateDepartement)
+			protected.GET("/postes", handlers.GetPostes)
+			protected.POST("/postes", handlers.CreatePoste)
 
-	// ORGANIZATION
-	api.Get("/organization", middleware.AuthRequired, middleware.TenantScope, handlers.GetOrganization)
-	api.Put("/organization", middleware.AuthRequired, middleware.TenantScope, handlers.UpdateOrganization)
+			// CONGÉS
+			conges := protected.Group("/conges")
+			{
+				conges.GET("/types", handlers.GetTypesConges)
+				conges.GET("/mes-demandes", handlers.GetMesDemandes)
+				conges.POST("/demande", handlers.CreateDemandeConge)
+				conges.GET("/mes-soldes", handlers.GetMesSoldes)
+				
+				// Routes RH/Manager
+				conges.GET("/toutes-les-demandes", handlers.GetAllDemandes)
+				conges.PATCH("/approuver/:id", handlers.ApprouverDemande)
+				conges.PATCH("/refuser/:id", handlers.RefuserDemande)
+			}
+		}
 
-	// CUSTOMERS
-	customers := protected.Group("/customers")
-	customers.Get("/", handlers.GetCustomers)
-	customers.Post("/", handlers.CreateCustomer)
-	customers.Put("/:id", handlers.UpdateCustomer)
-	customers.Delete("/:id", handlers.DeleteCustomer)
-
-	// SUPPLIERS
-	suppliers := protected.Group("/suppliers")
-	suppliers.Get("/", handlers.GetSuppliers)
-	suppliers.Post("/", handlers.CreateSupplier)
-	suppliers.Put("/:id", handlers.UpdateSupplier)
-	suppliers.Delete("/:id", handlers.DeleteSupplier)
-
-	// PRODUCTS
-	products := protected.Group("/products")
-	products.Get("/", handlers.GetProducts)
-	products.Post("/", handlers.CreateProduct)
-	products.Put("/:id", handlers.UpdateProduct)
-	products.Delete("/:id", handlers.DeleteProduct)
-	products.Get("/low-stock", handlers.GetLowStockProducts)
-
-	// INVOICES
-	invoices := protected.Group("/invoices")
-	invoices.Get("/", handlers.GetInvoices)
-	invoices.Get("/:id", handlers.GetInvoice)
-	invoices.Post("/", handlers.CreateInvoice)
-	invoices.Patch("/:id/status", handlers.UpdateInvoiceStatus)
-
-	// QUOTES
-	quotes := protected.Group("/quotes")
-	quotes.Get("/", handlers.GetQuotes)
-	quotes.Get("/:id", handlers.GetQuote)
-	quotes.Post("/", handlers.CreateQuote)
-	quotes.Post("/:id/convert", handlers.ConvertQuoteToInvoice)
-
-	// DASHBOARD
-	dashboard := protected.Group("/dashboard")
-	dashboard.Get("/stats", handlers.GetDashboardStats)
-	dashboard.Get("/revenue", handlers.GetMonthlyRevenue)
+		// PING
+		api.GET("/ping", func(c *gin.Context) {
+			c.JSON(200, gin.H{"message": "pong"})
+		})
+	}
 }

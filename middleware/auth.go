@@ -1,42 +1,45 @@
 package middleware
 
 import (
-	"os"
+	"fmt"
+	"net/http"
 	"strings"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 )
 
-func AuthRequired(c *fiber.Ctx) error {
-	authHeader := c.Get("Authorization")
+var jwtKey = []byte("votre_secret_jwt") // Doit correspondre à celui de handlers/auth.go
+
+type Claims struct {
+	UserID uint `json:"user_id"`
+	Role   string `json:"role"`
+	jwt.RegisteredClaims
+}
+
+func AuthRequired(c *gin.Context) {
+	authHeader := c.GetHeader("Authorization")
 	if authHeader == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"message": "En-tête Authorization manquant",
-		})
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Token d'autorisation manquant"})
+		return
 	}
 
 	tokenString := strings.Replace(authHeader, "Bearer ", "", 1)
-	
-	secret := os.Getenv("JWT_SECRET")
-	if secret == "" {
-		secret = "votre_secret_tres_securise"
-	}
+	claims := &Claims{}
 
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		return []byte(secret), nil
+	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("méthode de signature inattendue: %v", token.Header["alg"])
+		}
+		return jwtKey, nil
 	})
 
 	if err != nil || !token.Valid {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"message": "Token invalide ou expiré",
-		})
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Token invalide ou expiré"})
+		return
 	}
 
-	claims := token.Claims.(jwt.MapClaims)
-	c.Locals("user_id", claims["user_id"])
-	c.Locals("organization_id", claims["organization_id"])
-	c.Locals("role", claims["role"])
-
-	return c.Next()
+	c.Set("user_id", claims.UserID)
+	c.Set("user_role", claims.Role)
+	c.Next()
 }

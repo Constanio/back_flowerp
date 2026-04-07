@@ -1,17 +1,22 @@
 package main
 
 import (
-	"e_commerce/database"
-	"e_commerce/routes"
+	"sirh/database"
+	"sirh/routes"
 	"log"
 	"os"
 
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/logger"
-	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/gin-gonic/gin"
+	"github.com/gin-contrib/cors"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	// Chargement des variables d'environnement (.env)
+	if err := godotenv.Load(); err != nil {
+		log.Println("Note: Aucun fichier .env trouvé, utilisation des variables locales")
+	}
+
 	// Connexion à la base de données
 	_, err := database.Connect()
 	if err != nil {
@@ -21,16 +26,18 @@ func main() {
 	// Seeder
 	database.Seed()
 
-	app := fiber.New(fiber.Config{
-		AppName: "FlowERP API",
-	})
+	// Initialisation de Gin
+	r := gin.Default()
 
-	// Middlewares globaux
-	app.Use(logger.New())
-	app.Use(recover.New())
+	// Configuration CORS
+	config := cors.DefaultConfig()
+	config.AllowOrigins = []string{"http://localhost:5173"}
+	config.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization"}
+	config.AllowCredentials = true
+	r.Use(cors.New(config))
 
 	// Configuration des routes
-	routes.Setup(app)
+	routes.Setup(r)
 
 	// Lancement du serveur
 	port := os.Getenv("PORT")
@@ -39,5 +46,7 @@ func main() {
 	}
 
 	log.Printf("Serveur démarré sur le port %s", port)
-	log.Fatal(app.Listen(":" + port))
+	if err := r.Run(":" + port); err != nil {
+		log.Fatal("Impossible de lancer le serveur:", err)
+	}
 }
